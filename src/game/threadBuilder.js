@@ -3,45 +3,34 @@ const road = (n) => {
   return Array(n).fill(pair).join(" ");
 };
 
-// Vary the filler posts — different lengths and occasional flavor
+// 15 filler posts spread across 4 gaps (4-4-4-3) + 5 key posts = 20 total
 const fillerSets = [
-  // Between start and overtake (6 posts)
+  // Between start and overtake (4 posts)
   [
     road(24),
     road(20) + "\n" + road(20),
     road(22),
     road(18) + "\n" + road(22),
-    road(24),
-    road(20),
   ],
-  // Between overtake and DRS (7 posts)
+  // Between overtake and DRS (4 posts)
   [
     road(22),
     road(24),
     road(18) + "\n" + road(18),
     road(20),
-    road(24),
-    road(22) + "\n" + road(20),
-    road(20),
   ],
-  // Between DRS and tires (6 posts)
+  // Between DRS and tires (4 posts)
   [
     road(24),
+    road(20) + "\n" + road(22),
+    road(22),
     road(20),
-    road(22) + "\n" + road(22),
-    road(18),
-    road(24),
-    road(20) + "\n" + road(20),
   ],
-  // Between tires and finish (7 posts)
+  // Between tires and finish (3 posts)
   [
     road(22),
     road(20) + "\n" + road(20),
     road(24),
-    road(22),
-    road(18) + "\n" + road(22),
-    road(24),
-    road(20),
   ],
 ];
 
