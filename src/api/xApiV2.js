@@ -55,4 +55,16 @@ async function postTweet(text, replyToId) {
   return res.data?.data?.id || null;
 }
 
-module.exports = { postReply, postTestReply, postTweet };
+async function deleteTweet(tweetId) {
+  const url = `${TWEETS_URL}/${tweetId}`;
+  const request = { url, method: "DELETE" };
+  const authHeader = getAuthHeader(request);
+
+  const res = await axios.delete(url, {
+    headers: { ...authHeader },
+  });
+
+  return res.data;
+}
+
+module.exports = { postReply, postTestReply, postTweet, deleteTweet };

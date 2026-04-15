@@ -8,7 +8,7 @@ const {
   deleteWebhook,
   getWebhookStatus,
 } = require("./webhook/setup");
-const { postTestReply, postTweet } = require("./api/xApiV2");
+const { postTestReply, postTweet, deleteTweet } = require("./api/xApiV2");
 const { buildThread } = require("./game/threadBuilder");
 const store = require("./store");
 
@@ -120,6 +120,38 @@ app.post("/admin/test-reply/:handle", async (req, res) => {
       details: err.response?.data || err.message,
     });
   }
+});
+
+// --- Bulk delete ---
+
+app.post("/admin/delete-tweets", async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "Provide { ids: [...] }" });
+  }
+
+  const results = [];
+  for (const id of ids) {
+    try {
+      console.log(`Deleting tweet ${id}...`);
+      await deleteTweet(id);
+      results.push({ id, deleted: true });
+      console.log(`  -> deleted`);
+    } catch (err) {
+      const detail = err.response?.data || err.message;
+      console.error(`  -> failed: ${JSON.stringify(detail)}`);
+      results.push({ id, deleted: false, error: detail });
+    }
+    // Small delay to avoid rate limits
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  res.json({
+    ok: true,
+    deleted: results.filter((r) => r.deleted).length,
+    failed: results.filter((r) => !r.deleted).length,
+    results,
+  });
 });
 
 // --- Thread builder ---
