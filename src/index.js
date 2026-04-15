@@ -156,48 +156,75 @@ app.post("/admin/delete-tweets", async (req, res) => {
 
 // --- Thread builder ---
 
-app.post("/admin/post-thread", async (_req, res) => {
-  const tweets = buildThread();
-  const posted = [];
-  let lastId = null;
+// In-memory thread progress tracker
+let threadProgress = null;
 
-  try {
+app.post("/admin/post-thread", (_req, res) => {
+  if (threadProgress && threadProgress.status === "in_progress") {
+    return res.status(409).json({ error: "Thread is already being posted", progress: threadProgress });
+  }
+
+  const tweets = buildThread();
+  const DELAY_MS = 2 * 60 * 1000; // 2 minutes between posts
+
+  threadProgress = {
+    status: "in_progress",
+    total: tweets.length,
+    posted: [],
+    keyPosts: [],
+    startedAt: new Date().toISOString(),
+    error: null,
+  };
+
+  // Respond immediately — post in the background
+  res.json({ ok: true, message: `Posting ${tweets.length} nullcast tweets with 2-min gaps. Check GET /admin/thread-status for progress.` });
+
+  // Fire-and-forget
+  (async () => {
+    let lastId = null;
+
     for (let i = 0; i < tweets.length; i++) {
       const tweet = tweets[i];
-      console.log(`Posting tweet ${i + 1}/${tweets.length} [${tweet.role}]...`);
-      const tweetId = await postTweet(tweet.text, lastId);
-      posted.push({ index: i, role: tweet.role, tweetId });
-      lastId = tweetId;
-      console.log(`  -> ${tweetId}`);
+      try {
+        console.log(`[thread] Posting ${i + 1}/${tweets.length} [${tweet.role}]...`);
+        const tweetId = await postTweet(tweet.text, lastId, { nullcast: true });
+        const entry = { index: i, role: tweet.role, tweetId };
+        threadProgress.posted.push(entry);
+        if (tweet.role !== "filler") {
+          threadProgress.keyPosts.push(entry);
+        }
+        lastId = tweetId;
+        console.log(`[thread]   -> ${tweetId}`);
+      } catch (err) {
+        const detail = err.response?.data || err.message;
+        console.error(`[thread] Failed at tweet ${i + 1}:`, detail);
+        threadProgress.status = "failed";
+        threadProgress.error = { failedAt: i + 1, detail };
+        return;
+      }
 
-      // Small delay to avoid rate limits
+      // Wait between posts (skip after the last one)
       if (i < tweets.length - 1) {
-        await new Promise((r) => setTimeout(r, 1500));
+        console.log(`[thread] Waiting 2 minutes before next post...`);
+        await new Promise((r) => setTimeout(r, DELAY_MS));
       }
     }
 
-    // Extract the important post IDs
-    const keyPosts = posted.filter((p) => p.role !== "filler");
-    console.log("\n=== KEY POST IDS ===");
-    for (const p of keyPosts) {
-      console.log(`${p.role}: ${p.tweetId}`);
+    threadProgress.status = "done";
+    threadProgress.finishedAt = new Date().toISOString();
+    console.log("\n=== THREAD COMPLETE ===");
+    console.log("Key posts:");
+    for (const p of threadProgress.keyPosts) {
+      console.log(`  ${p.role}: ${p.tweetId}`);
     }
+  })();
+});
 
-    res.json({
-      ok: true,
-      totalPosted: posted.length,
-      keyPosts,
-      allPosts: posted,
-    });
-  } catch (err) {
-    console.error("Thread posting failed at tweet", posted.length + 1, err.response?.data || err.message);
-    res.status(500).json({
-      error: "Thread posting failed",
-      failedAt: posted.length + 1,
-      posted,
-      details: err.response?.data || err.message,
-    });
+app.get("/admin/thread-status", (_req, res) => {
+  if (!threadProgress) {
+    return res.json({ status: "idle", message: "No thread has been posted yet" });
   }
+  res.json(threadProgress);
 });
 
 // --- Start ---

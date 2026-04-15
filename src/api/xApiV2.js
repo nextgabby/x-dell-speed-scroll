@@ -32,10 +32,13 @@ async function postTestReply(handle) {
   return postReply(text);
 }
 
-async function postTweet(text, replyToId) {
+async function postTweet(text, replyToId, { nullcast = false } = {}) {
   const body = { text };
   if (replyToId) {
     body.reply = { in_reply_to_tweet_id: replyToId };
+  }
+  if (nullcast) {
+    body.nullcast = true;
   }
 
   const request = {
