@@ -32,4 +32,27 @@ async function postTestReply(handle) {
   return postReply(text);
 }
 
-module.exports = { postReply, postTestReply };
+async function postTweet(text, replyToId) {
+  const body = { text };
+  if (replyToId) {
+    body.reply = { in_reply_to_tweet_id: replyToId };
+  }
+
+  const request = {
+    url: TWEETS_URL,
+    method: "POST",
+  };
+
+  const authHeader = getAuthHeader(request);
+
+  const res = await axios.post(TWEETS_URL, body, {
+    headers: {
+      ...authHeader,
+      "Content-Type": "application/json",
+    },
+  });
+
+  return res.data?.data?.id || null;
+}
+
+module.exports = { postReply, postTestReply, postTweet };

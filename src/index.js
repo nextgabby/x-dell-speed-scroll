@@ -8,7 +8,8 @@ const {
   deleteWebhook,
   getWebhookStatus,
 } = require("./webhook/setup");
-const { postTestReply } = require("./api/xApiV2");
+const { postTestReply, postTweet } = require("./api/xApiV2");
+const { buildThread } = require("./game/threadBuilder");
 const store = require("./store");
 
 const app = express();
@@ -116,6 +117,52 @@ app.post("/admin/test-reply/:handle", async (req, res) => {
     console.error("Test reply failed:", err.response?.data || err.message);
     res.status(500).json({
       error: "Test reply failed",
+      details: err.response?.data || err.message,
+    });
+  }
+});
+
+// --- Thread builder ---
+
+app.post("/admin/post-thread", async (_req, res) => {
+  const tweets = buildThread();
+  const posted = [];
+  let lastId = null;
+
+  try {
+    for (let i = 0; i < tweets.length; i++) {
+      const tweet = tweets[i];
+      console.log(`Posting tweet ${i + 1}/${tweets.length} [${tweet.role}]...`);
+      const tweetId = await postTweet(tweet.text, lastId);
+      posted.push({ index: i, role: tweet.role, tweetId });
+      lastId = tweetId;
+      console.log(`  -> ${tweetId}`);
+
+      // Small delay to avoid rate limits
+      if (i < tweets.length - 1) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+
+    // Extract the important post IDs
+    const keyPosts = posted.filter((p) => p.role !== "filler");
+    console.log("\n=== KEY POST IDS ===");
+    for (const p of keyPosts) {
+      console.log(`${p.role}: ${p.tweetId}`);
+    }
+
+    res.json({
+      ok: true,
+      totalPosted: posted.length,
+      keyPosts,
+      allPosts: posted,
+    });
+  } catch (err) {
+    console.error("Thread posting failed at tweet", posted.length + 1, err.response?.data || err.message);
+    res.status(500).json({
+      error: "Thread posting failed",
+      failedAt: posted.length + 1,
+      posted,
       details: err.response?.data || err.message,
     });
   }
